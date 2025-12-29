@@ -77,43 +77,115 @@ serve(async (req) => {
     const elasticsearchUrl = Deno.env.get('ELASTICSEARCH_NGROK_URL');
     const elasticsearchApiKey = Deno.env.get('ELASTICSEARCH_API_KEY');
 
-    if (!elasticsearchUrl || !elasticsearchApiKey) {
-      console.error('Elasticsearch not configured');
+    if (!elasticsearchUrl) {
+      console.error('Elasticsearch URL not configured');
       return new Response(
         JSON.stringify({ success: false, error: 'Elasticsearch no está configurado. Contacta al administrador.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Searching Elasticsearch for:', query);
+    console.log('Searching Elasticsearch for:', query, 'URL:', elasticsearchUrl);
+
+    // Build headers for Elasticsearch
+    const esHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add API key if provided
+    if (elasticsearchApiKey) {
+      esHeaders['Authorization'] = `ApiKey ${elasticsearchApiKey}`;
+    }
 
     // Search in Elasticsearch
     const searchIndex = index || '_all';
-    const esResponse = await fetch(`${elasticsearchUrl}/${searchIndex}/_search`, {
+    const searchUrl = `${elasticsearchUrl}/${searchIndex}/_search`;
+    
+    console.log('Elasticsearch search URL:', searchUrl);
+
+    const esResponse = await fetch(searchUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `ApiKey ${elasticsearchApiKey}`,
-        'Content-Type': 'application/json',
-      },
+      headers: esHeaders,
       body: JSON.stringify({
         query: {
-          multi_match: {
-            query: query,
-            fields: ["*"],
-            type: "best_fields",
-            fuzziness: "AUTO"
+          query_string: {
+            query: `*${query}*`,
+            default_operator: "OR",
+            analyze_wildcard: true
           }
         },
         size: 100
       }),
     });
 
+    console.log('Elasticsearch response status:', esResponse.status);
+
     if (!esResponse.ok) {
       const errorText = await esResponse.text();
       console.error('Elasticsearch error:', errorText);
+      
+      // Try alternative query format
+      console.log('Trying alternative query format...');
+      const altResponse = await fetch(searchUrl, {
+        method: 'POST',
+        headers: esHeaders,
+        body: JSON.stringify({
+          query: {
+            multi_match: {
+              query: query,
+              fields: ["*"],
+              type: "phrase_prefix"
+            }
+          },
+          size: 100
+        }),
+      });
+
+      if (!altResponse.ok) {
+        const altError = await altResponse.text();
+        console.error('Alternative query also failed:', altError);
+        return new Response(
+          JSON.stringify({ success: false, error: 'Error al buscar en Elasticsearch. Verifica la configuración.' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const altData = await altResponse.json();
+      const altHits = altData.hits?.hits || [];
+      const altResults = altHits.map((hit: any) => ({
+        id: hit._id,
+        index: hit._index,
+        score: hit._score,
+        data: hit._source
+      }));
+
+      // Update requests_used
+      const serviceClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+
+      await serviceClient
+        .from('api_keys')
+        .update({ requests_used: apiKey.requests_used + 1 })
+        .eq('id', apiKey.id);
+
+      await serviceClient
+        .from('search_logs')
+        .insert({
+          user_id: user.id,
+          query: query,
+          results_count: altResults.length
+        });
+
       return new Response(
-        JSON.stringify({ success: false, error: 'Error al buscar en Elasticsearch' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          success: true, 
+          results: altResults,
+          total: altData.hits?.total?.value || altResults.length,
+          remaining: apiKey.requests_limit - apiKey.requests_used - 1
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
