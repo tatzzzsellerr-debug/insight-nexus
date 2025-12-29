@@ -1,10 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { Search, Shield, Zap, Database } from "lucide-react";
-
 const HeroSection = () => {
-  return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+  return <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
       {/* Animated background elements */}
       <div className="absolute inset-0 cyber-grid opacity-20" />
       <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse-glow" />
@@ -40,12 +38,7 @@ const HeroSection = () => {
               <div className="absolute -inset-1 bg-gradient-to-r from-primary via-primary/50 to-primary rounded-lg blur opacity-25 group-hover:opacity-50 transition duration-500"></div>
               <div className="relative flex items-center bg-card border border-border rounded-lg p-2">
                 <Search className="h-5 w-5 text-muted-foreground ml-3" />
-                <input
-                  type="text"
-                  placeholder="Buscar emails, nombres, teléfonos, dominios..."
-                  className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-foreground font-mono placeholder:text-muted-foreground"
-                  disabled
-                />
+                <input type="text" placeholder="Buscar emails, nombres, teléfonos, dominios..." className="flex-1 bg-transparent border-none outline-none px-4 py-3 text-foreground font-mono placeholder:text-muted-foreground" disabled />
                 <Button variant="cyber" className="mr-1">
                   BUSCAR
                 </Button>
@@ -72,7 +65,7 @@ const HeroSection = () => {
           <div className="grid grid-cols-3 gap-8 pt-12 animate-fade-in delay-500">
             <div className="text-center">
               <Database className="h-8 w-8 text-primary mx-auto mb-2" />
-              <div className="text-3xl font-display font-bold text-foreground">50B+</div>
+              <div className="text-3xl font-display font-bold text-foreground">300B+</div>
               <div className="text-sm text-muted-foreground font-mono">Registros</div>
             </div>
             <div className="text-center">
@@ -93,8 +86,6 @@ const HeroSection = () => {
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute w-full h-px bg-gradient-to-r from-transparent via-primary to-transparent animate-scan opacity-50" />
       </div>
-    </section>
-  );
+    </section>;
 };
-
 export default HeroSection;
