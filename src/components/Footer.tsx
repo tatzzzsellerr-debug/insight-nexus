@@ -1,9 +1,7 @@
 import { Shield } from "lucide-react";
 import { Link } from "react-router-dom";
-
 const Footer = () => {
-  return (
-    <footer className="border-t border-border bg-card/50 backdrop-blur-sm">
+  return <footer className="border-t border-border bg-card/50 backdrop-blur-sm">
       <div className="container mx-auto px-4 py-12">
         <div className="grid md:grid-cols-4 gap-8">
           <div className="space-y-4">
@@ -49,7 +47,7 @@ const Footer = () => {
 
         <div className="mt-8 pt-8 border-t border-border flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-muted-foreground">
-            © 2024 OSINTHUB. Todos los derechos reservados.
+            © 2025 C1HUB. Todos los derechos reservados.
           </p>
           <div className="flex items-center gap-4">
             <span className="text-xs text-muted-foreground font-mono">
@@ -58,8 +56,6 @@ const Footer = () => {
           </div>
         </div>
       </div>
-    </footer>
-  );
+    </footer>;
 };
-
 export default Footer;
