@@ -109,8 +109,8 @@ const PricingSection = () => {
                   className="w-full"
                   asChild
                 >
-                  <Link to={`/auth?mode=signup&plan=${plan.name.toLowerCase()}`}>
-                    COMENZAR
+                  <Link to={`/checkout?plan=${plan.name.toLowerCase()}`}>
+                    COMPRAR AHORA
                   </Link>
                 </Button>
               </CardFooter>
