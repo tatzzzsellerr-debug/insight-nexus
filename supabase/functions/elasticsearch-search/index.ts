@@ -7,9 +7,63 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Simple in-memory rate limiter
+const rateLimitStore: Map<string, { count: number; resetTime: number }> = new Map();
+
+function checkRateLimit(ip: string, maxRequests: number = 30, windowMs: number = 60000): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+  
+  // Clean old entries
+  if (Math.random() < 0.1) {
+    for (const [k, v] of rateLimitStore) {
+      if (now > v.resetTime) rateLimitStore.delete(k);
+    }
+  }
+  
+  if (!entry || now > entry.resetTime) {
+    rateLimitStore.set(ip, { count: 1, resetTime: now + windowMs });
+    return { allowed: true, remaining: maxRequests - 1 };
+  }
+  
+  if (entry.count >= maxRequests) {
+    return { allowed: false, remaining: 0 };
+  }
+  
+  entry.count++;
+  return { allowed: true, remaining: maxRequests - entry.count };
+}
+
+function getClientIP(req: Request): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+         req.headers.get('x-real-ip') || 
+         req.headers.get('cf-connecting-ip') || 
+         'unknown';
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Rate limiting
+  const clientIP = getClientIP(req);
+  const rateLimit = checkRateLimit(clientIP, 30, 60000); // 30 requests per minute
+  
+  if (!rateLimit.allowed) {
+    console.log('Rate limit exceeded for IP:', clientIP);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Demasiadas solicitudes. Espera un momento.' }),
+      { 
+        status: 429, 
+        headers: { 
+          ...corsHeaders, 
+          'Content-Type': 'application/json',
+          'X-RateLimit-Remaining': '0',
+          'Retry-After': '60'
+        } 
+      }
+    );
   }
 
   try {
@@ -85,7 +139,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Searching Elasticsearch for:', query, 'URL:', elasticsearchUrl);
+    console.log('Searching Elasticsearch for:', query, 'URL:', elasticsearchUrl, 'IP:', clientIP);
 
     // Build headers for Elasticsearch
     const esHeaders: Record<string, string> = {

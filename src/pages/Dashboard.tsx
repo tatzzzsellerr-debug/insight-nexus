@@ -7,6 +7,8 @@ import { Search, Key, Activity, AlertTriangle, ShoppingCart } from "lucide-react
 import { useAuth } from "@/hooks/useAuth";
 import { useApiKey } from "@/hooks/useApiKey";
 import Navbar from "@/components/Navbar";
+import ReviewForm from "@/components/dashboard/ReviewForm";
+import UserReviews from "@/components/dashboard/UserReviews";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -25,6 +27,7 @@ const Dashboard = () => {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [remainingSearches, setRemainingSearches] = useState<number | null>(null);
+  const [reviewRefreshTrigger, setReviewRefreshTrigger] = useState(0);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth");
@@ -69,6 +72,10 @@ const Dashboard = () => {
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const handleReviewSubmitted = () => {
+    setReviewRefreshTrigger((prev) => prev + 1);
   };
 
   const isLoading = authLoading || keyLoading;
@@ -222,6 +229,14 @@ const Dashboard = () => {
                 </p>
               </CardContent>
             </Card>
+          )}
+
+          {/* Reviews Section - Only for active key holders */}
+          {hasActiveKey && user && (
+            <div className="space-y-6">
+              <ReviewForm userId={user.id} onReviewSubmitted={handleReviewSubmitted} />
+              <UserReviews userId={user.id} refreshTrigger={reviewRefreshTrigger} />
+            </div>
           )}
         </div>
       </main>
