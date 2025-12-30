@@ -6,6 +6,39 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Simple in-memory rate limiter
+const rateLimitStore: Map<string, { count: number; resetTime: number }> = new Map();
+
+function checkRateLimit(ip: string, maxRequests: number = 10, windowMs: number = 60000): { allowed: boolean; remaining: number } {
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+  
+  if (Math.random() < 0.1) {
+    for (const [k, v] of rateLimitStore) {
+      if (now > v.resetTime) rateLimitStore.delete(k);
+    }
+  }
+  
+  if (!entry || now > entry.resetTime) {
+    rateLimitStore.set(ip, { count: 1, resetTime: now + windowMs });
+    return { allowed: true, remaining: maxRequests - 1 };
+  }
+  
+  if (entry.count >= maxRequests) {
+    return { allowed: false, remaining: 0 };
+  }
+  
+  entry.count++;
+  return { allowed: true, remaining: maxRequests - entry.count };
+}
+
+function getClientIP(req: Request): string {
+  return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+         req.headers.get('x-real-ip') || 
+         req.headers.get('cf-connecting-ip') || 
+         'unknown';
+}
+
 const PAYPAL_API_URL = Deno.env.get('PAYPAL_MODE') === 'live' 
   ? 'https://api-m.paypal.com' 
   : 'https://api-m.sandbox.paypal.com';
@@ -44,6 +77,18 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Rate limiting - 10 orders per minute per IP
+  const clientIP = getClientIP(req);
+  const rateLimit = checkRateLimit(clientIP, 10, 60000);
+  
+  if (!rateLimit.allowed) {
+    console.log('Rate limit exceeded for IP:', clientIP);
+    return new Response(
+      JSON.stringify({ success: false, error: 'Demasiadas solicitudes. Espera un momento.' }),
+      { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
   try {
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -72,7 +117,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Creating PayPal order for user:', user.id, 'plan:', plan, 'price:', price);
+    console.log('Creating PayPal order for user:', user.id, 'plan:', plan, 'price:', price, 'IP:', clientIP);
 
     const accessToken = await getPayPalAccessToken();
 
